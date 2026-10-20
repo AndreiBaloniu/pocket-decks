@@ -5,6 +5,7 @@
   "scripts": {
     "publish": "node web/publish.js",
     "preview": "npx --yes serve@14.2.4 web -l 5173",
-    "check-beats": "node scripts/check-beats.js"
+    "check-beats": "node scripts/check-beats.js",
+    "build-ios": "node scripts/build-ios.js"
   }
 }

@@ -1,4 +1,8 @@
 'use strict';
+// Google sign-in client IDs. Not secret: they only tell Google which app is asking.
+// iOS: the installed iPhone app (bundle ID io.github.andreibaloniu.pocketdecks). Web: Safari / Home Screen.
+const GOOGLE_IOS_CLIENT_ID = '140526101246-8dhlsir389qm95moggkagbobc8tjcqe5.apps.googleusercontent.com';
+const GOOGLE_WEB_CLIENT_ID = '';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const store = {
@@ -538,15 +542,16 @@ function remix(buf, bpm, seed) {
 
 // ---------- YouTube library: search, playlists, liked ----------
 const lib = $('#lib'), rowsEl = $('#rows'), libMsg = $('#libMsg');
-let libDeck = 0, tab = 'search', token = null, inList = null, tokenClient = null;
+let libDeck = 0, tab = 'search', inList = null, tokenClient = null;
 const say = (m) => (libMsg.textContent = m);
 
 async function api(path, params) {
-  const key = store.get('apiKey');
-  if (!token && !key) throw new Error('Add your YouTube API key in Setup first.');
-  const q = new URLSearchParams(token ? params : { ...params, key });
-  const r = await fetch(`https://www.googleapis.com/youtube/v3/${path}?${q}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const t = await getToken(), key = store.get('apiKey');
+  if (!t && !key) throw new Error('Sign in with Google (top right) to search YouTube and see your playlists.');
+  const q = new URLSearchParams(t ? params : { ...params, key });
+  const r = await fetch(`https://www.googleapis.com/youtube/v3/${path}?${q}`, { headers: t ? { Authorization: `Bearer ${t}` } : {} });
   const j = await r.json();
+  if (r.status === 401) { forgetToken(); throw new Error('Your Google sign-in ran out. Tap Sign in with Google again.'); }
   if (!r.ok) throw new Error(j.error?.message ?? `YouTube error ${r.status}`);
   return j.items;
 }
@@ -591,14 +596,15 @@ function showTab(t) {
   $('#back').hidden = true;
   rowsEl.replaceChildren(); say('');
   if (!navigator.onLine && t !== 'setup') return say("You're offline. YouTube needs internet; song files still work.");
-  if ((t === 'playlists' || t === 'liked') && !token) return say('Sign in with Google to see your playlists and liked songs.');
+  if (!signedIn() && t !== 'setup' && !(t === 'search' && store.get('apiKey')))
+    return say('Sign in with Google (top right) to search YouTube and see your playlists and liked songs. You only need to do this once.');
   if (t === 'playlists') run(yt.playlists);
   if (t === 'liked') run(yt.liked);
 }
 function openLib(i) {
   libDeck = i;
   lib.showModal();
-  showTab(tab === 'setup' || store.get('apiKey') || token ? tab : 'setup');
+  showTab(tab);
   prepSignIn();
 }
 $$('.tabs button').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
@@ -611,12 +617,76 @@ for (const k of ['apiKey', 'clientId']) {
 }
 $('#originHint').textContent = $('#originHint2').textContent = location.origin;
 
-// Google sign-in (Google Identity Services). The token client is prepared when the library opens,
-// so the tap on "Sign in" can open Google's window straight away (Safari blocks it otherwise).
+// ---------- Google sign-in, remembered ----------
+// Installed iPhone app: Google's sign-in page opens in Safari's in-app sheet (Google blocks it inside
+// the app's own web view), returns through the app's URL scheme, and gives a refresh token. The app
+// keeps that, so you sign in once. In Safari / Home Screen there are no refresh tokens: the sign-in
+// is kept for its hour, then one tap renews it.
+const native = !!window.Capacitor?.isNativePlatform?.();
+const Cap = window.Capacitor?.Plugins ?? {};
+const SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
+const iosRedirect = () => GOOGLE_IOS_CLIENT_ID.split('.').reverse().join('.') + ':/oauthredirect';
+const b64url = (a) => btoa(String.fromCharCode(...a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+let pkce = null;
+
+const tokenValid = () => store.get('token') && +store.get('tokenExp') > Date.now() + 60000;
+const signedIn = () => !!(tokenValid() || (native && store.get('refresh')));
+function saveToken(t, secs) {
+  store.set('token', t); store.set('tokenExp', String(Date.now() + secs * 1000));
+  signinUI();
+}
+function forgetToken() { store.set('token', ''); store.set('tokenExp', ''); signinUI(); }
+function signinUI() { $('#signin').textContent = signedIn() ? 'Sign out' : 'Sign in with Google'; }
+async function googleToken(params) {
+  // CapacitorHttp goes through iOS itself, so Google's token endpoint needs no browser CORS
+  const r = await Cap.CapacitorHttp.post({
+    url: 'https://oauth2.googleapis.com/token',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    data: new URLSearchParams({ client_id: GOOGLE_IOS_CLIENT_ID, ...params }).toString(),
+  });
+  return typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+}
+async function getToken() {
+  if (tokenValid()) return store.get('token');
+  const refresh = store.get('refresh');
+  if (native && refresh && navigator.onLine) {
+    const r = await googleToken({ grant_type: 'refresh_token', refresh_token: refresh });
+    if (r.access_token) { saveToken(r.access_token, r.expires_in); return r.access_token; }
+    if (r.error === 'invalid_grant') store.set('refresh', ''); // revoked or expired: sign in again
+  }
+  forgetToken();
+  return null;
+}
+async function nativeSignIn() {
+  const rand = (n) => b64url(crypto.getRandomValues(new Uint8Array(n)));
+  const verifier = rand(48), state = rand(16);
+  const challenge = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
+  pkce = { verifier, state };
+  const q = new URLSearchParams({ client_id: GOOGLE_IOS_CLIENT_ID, redirect_uri: iosRedirect(), response_type: 'code',
+    scope: SCOPE, code_challenge: challenge, code_challenge_method: 'S256', state });
+  await Cap.Browser.open({ url: 'https://accounts.google.com/o/oauth2/v2/auth?' + q });
+}
+if (native) Cap.App?.addListener('appUrlOpen', async ({ url }) => {
+  if (!url.startsWith(iosRedirect().split(':')[0] + ':')) return;
+  Cap.Browser.close().catch(() => {});
+  const p = new URLSearchParams(url.split('?')[1] || '');
+  if (p.get('error')) return say(`Sign-in cancelled (${p.get('error')}).`);
+  if (!pkce || p.get('state') !== pkce.state) return say("Sign-in didn't finish. Tap Sign in with Google again.");
+  say('Signing in…');
+  const r = await googleToken({ grant_type: 'authorization_code', code: p.get('code'), code_verifier: pkce.verifier, redirect_uri: iosRedirect() });
+  pkce = null;
+  if (!r.access_token) return say(`Google sign-in failed: ${r.error_description || r.error}`);
+  if (r.refresh_token) store.set('refresh', r.refresh_token);
+  saveToken(r.access_token, r.expires_in);
+  showTab(tab === 'setup' ? 'playlists' : tab);
+});
+
+// Safari / Home Screen: Google Identity Services. The token client is prepared when the library
+// opens, so the tap on "Sign in" can open Google's window straight away (Safari blocks it otherwise).
 let gisLoad;
+const webClientId = () => store.get('clientId') || GOOGLE_WEB_CLIENT_ID;
 function prepSignIn() {
-  const id = store.get('clientId');
-  if (!id || tokenClient || !navigator.onLine) return;
+  if (native || !webClientId() || tokenClient || !navigator.onLine) return;
   gisLoad ||= new Promise((res, rej) => {
     const s = document.createElement('script');
     s.src = 'https://accounts.google.com/gsi/client';
@@ -625,22 +695,24 @@ function prepSignIn() {
   });
   gisLoad.then(() => {
     tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: id,
-      scope: 'https://www.googleapis.com/auth/youtube.readonly',
-      callback: (r) => { if (r.access_token) { token = r.access_token; $('#signin').textContent = 'Sign out'; showTab(tab === 'setup' ? 'playlists' : tab); } },
+      client_id: webClientId(), scope: SCOPE,
+      callback: (r) => { if (r.access_token) { saveToken(r.access_token, r.expires_in); showTab(tab === 'setup' ? 'playlists' : tab); } },
       error_callback: (e) => say(`Sign-in didn't finish: ${e.message || e.type}`),
     });
   }, () => {});
 }
 $('#signin').onclick = () => {
-  if (token) {
-    google.accounts.oauth2.revoke(token, () => {});
-    token = null; $('#signin').textContent = 'Sign in with Google'; return showTab(tab);
+  if (signedIn()) { store.set('refresh', ''); forgetToken(); return showTab(tab); }
+  if (native) {
+    if (!GOOGLE_IOS_CLIENT_ID) return say('This build has no Google client ID yet (see README).');
+    return nativeSignIn().catch((e) => say(`Couldn't open Google sign-in: ${e.message}`));
   }
-  if (!store.get('clientId')) { showTab('setup'); return say('Add your Google OAuth client ID in Setup first.'); }
+  if (!webClientId()) { showTab('setup'); return say('Add your Google OAuth client ID in Setup first.'); }
   if (!tokenClient) { prepSignIn(); return say('Getting Google sign-in ready. Tap Sign in again in a second.'); }
   tokenClient.requestAccessToken();
 };
+signinUI();
+if (native) $('#clientId').closest('label').hidden = true; // the installed app has its client ID built in
 
 // ---------- offline + install ----------
 const onlineUI = () => { $('#offline').hidden = navigator.onLine; };

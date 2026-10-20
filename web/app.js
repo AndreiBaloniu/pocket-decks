@@ -552,6 +552,8 @@ async function api(path, params) {
   const r = await fetch(`https://www.googleapis.com/youtube/v3/${path}?${q}`, { headers: t ? { Authorization: `Bearer ${t}` } : {} });
   const j = await r.json();
   if (r.status === 401) { forgetToken(); throw new Error('Your Google sign-in ran out. Tap Sign in with Google again.'); }
+  if (j.error?.details?.some?.((d) => d.reason === 'SERVICE_DISABLED') || /has not been used in project|is disabled/.test(j.error?.message || ''))
+    throw new Error('The YouTube Data API is switched off in the Google Cloud project. Turn it on: console.cloud.google.com › APIs & Services › Library › YouTube Data API v3 › Enable, wait a minute, then try again.');
   if (!r.ok) throw new Error(j.error?.message ?? `YouTube error ${r.status}`);
   return j.items;
 }

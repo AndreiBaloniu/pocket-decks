@@ -596,6 +596,7 @@ function showTab(t) {
   $('#back').hidden = true;
   rowsEl.replaceChildren(); say('');
   if (!navigator.onLine && t !== 'setup') return say("You're offline. YouTube needs internet; song files still work.");
+  if (renewing() && t !== 'setup') return say(tokenClient ? 'Renewing your Google sign-in…' : 'Getting Google sign-in ready. Tap Sign in with Google.');
   if (!signedIn() && t !== 'setup' && !(t === 'search' && store.get('apiKey')))
     return say('Sign in with Google (top right) to search YouTube and see your playlists and liked songs. You only need to do this once.');
   if (t === 'playlists') run(yt.playlists);
@@ -604,6 +605,7 @@ function showTab(t) {
 function openLib(i) {
   libDeck = i;
   lib.showModal();
+  if (renewing() && tokenClient) tokenClient.requestAccessToken({ prompt: '' }); // already allowed: Google's window opens and closes by itself
   showTab(tab);
   prepSignIn();
 }
@@ -630,7 +632,8 @@ const b64url = (a) => btoa(String.fromCharCode(...a)).replace(/\+/g, '-').replac
 let pkce = null;
 
 const tokenValid = () => store.get('token') && +store.get('tokenExp') > Date.now() + 60000;
-const signedIn = () => !!(tokenValid() || (native && store.get('refresh')));
+const signedIn = () => !!(tokenValid() || store.get(native ? 'refresh' : 'webSignedIn'));
+const renewing = () => !native && !tokenValid() && !!store.get('webSignedIn');
 function saveToken(t, secs) {
   store.set('token', t); store.set('tokenExp', String(Date.now() + secs * 1000));
   signinUI();
@@ -696,13 +699,17 @@ function prepSignIn() {
   gisLoad.then(() => {
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: webClientId(), scope: SCOPE,
-      callback: (r) => { if (r.access_token) { saveToken(r.access_token, r.expires_in); showTab(tab === 'setup' ? 'playlists' : tab); } },
-      error_callback: (e) => say(`Sign-in didn't finish: ${e.message || e.type}`),
+      callback: (r) => {
+        if (!r.access_token) { store.set('webSignedIn', ''); signinUI(); return say("Sign-in didn't finish. Tap Sign in with Google."); }
+        store.set('webSignedIn', '1'); saveToken(r.access_token, r.expires_in); showTab(tab === 'setup' ? 'playlists' : tab);
+      },
+      error_callback: (e) => { store.set('webSignedIn', ''); signinUI(); say(`Sign-in didn't finish (${e.message || e.type}). Tap Sign in with Google.`); },
     });
   }, () => {});
 }
 $('#signin').onclick = () => {
-  if (signedIn()) { store.set('refresh', ''); forgetToken(); return showTab(tab); }
+  if (renewing() && tokenClient) return tokenClient.requestAccessToken({ prompt: '' });
+  if (signedIn()) { store.set('refresh', ''); store.set('webSignedIn', ''); forgetToken(); return showTab(tab); }
   if (native) {
     if (!GOOGLE_IOS_CLIENT_ID) return say('This build has no Google client ID yet (see README).');
     return nativeSignIn().catch((e) => say(`Couldn't open Google sign-in: ${e.message}`));
@@ -712,7 +719,17 @@ $('#signin').onclick = () => {
   tokenClient.requestAccessToken();
 };
 signinUI();
+if (store.get('webSignedIn')) prepSignIn();
 if (native) $('#clientId').closest('label').hidden = true; // the installed app has its client ID built in
+
+// ---------- Get the app ----------
+const getDlg = $('#getDlg');
+const homeScreenApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+$('#homeBox').hidden = homeScreenApp; $('#homeDone').hidden = !homeScreenApp;
+$('#getBtn').hidden = native; // already the installed app
+$('#getBtn').onclick = () => getDlg.showModal();
+$('.getapp').onclick = () => getDlg.showModal();
+$('#getClose').onclick = () => getDlg.close();
 
 // ---------- offline + install ----------
 const onlineUI = () => { $('#offline').hidden = navigator.onLine; };

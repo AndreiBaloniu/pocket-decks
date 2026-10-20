@@ -85,6 +85,16 @@ input[type=range] { width: 100%; accent-color: var(--c, var(--a)); height: 28px;
   .getapp { display: flex; }
   header { padding-right: 0; }
 }
+#getBtn { border-color: var(--a); color: var(--a); padding: 0 14px; flex: none; }
+@media (hover: hover) and (pointer: fine) and (min-width: 700px) { #getBtn { display: none; } }
+/* Get the app (like Break My Eggs' "Get the game") */
+#getDlg { gap: 14px; overflow-y: auto; font: 15px/1.5 system-ui, sans-serif; }
+#getDlg h3 { margin: 0 0 4px; font-size: 17px; }
+#getDlg .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+#getDlg ol { margin: 6px 0 0; padding-left: 22px; }
+#getDlg .note { font-size: 13px; }
+#getDlg .bigqr { width: 180px; height: 180px; border-radius: 6px; display: block; margin: 0 auto; }
+.dlbtn { display: flex; align-items: center; justify-content: center; min-height: 48px; border-radius: 8px; background: var(--a); color: var(--bg); font-weight: 700; text-decoration: none; }
 /* YouTube library */
 dialog { width: min(640px, 100vw); max-width: 100vw; height: 100%; max-height: 100dvh; margin: auto; padding: calc(env(safe-area-inset-top) + 16px) 16px 16px; background: var(--bg); color: var(--fg); border: 0; }
 @media (min-width: 700px) { dialog { height: 85dvh; border: 1px solid var(--line); border-radius: 12px; } }
@@ -113,6 +123,7 @@ input[type=search], input[type=text] { width: 100%; background: var(--panel); co
   <header>
     <h1><span>Pocket</span> <span>Decks</span></h1>
     <span class="offline" id="offline" hidden>OFFLINE · song files only</span>
+    <button id="getBtn">Get the app</button>
     <aside class="getapp" aria-label="Open on your iPhone">
       <img src="qr.svg" alt="QR code for andreibaloniu.github.io/pocket-decks">
       <div><b>Get it on your iPhone</b>
@@ -140,6 +151,27 @@ input[type=search], input[type=text] { width: 100%; background: var(--panel); co
     Hold ‹‹ / ›› to nudge a deck into phase after SYNC. If the BPM is wrong, tap TAP along with the beat.
     Song files work offline; YouTube needs internet. <a href="privacy.html" style="color:var(--dim)">Privacy</a></p>
 </main>
+
+<dialog id="getDlg" aria-label="Get the app">
+  <div class="libtop"><h2>Get the app</h2><button class="link" id="getClose">Done</button></div>
+  <div class="box" id="homeBox">
+    <h3>Easiest: add it to your Home Screen</h3>
+    <p class="note">No download, no computer. You get the Pocket Decks icon, it opens full screen, works offline for song files,
+      and is always the newest version. Sign in to Google once and it renews itself.</p>
+    <ol><li>Open this page in <b>Safari</b></li><li>Tap <b>Share ⬆</b> (bottom of the screen)</li>
+      <li>Scroll down, tap <b>Add to Home Screen</b></li><li>Tap <b>Add</b> and open it from the icon</li></ol>
+  </div>
+  <p class="box" id="homeDone" hidden>✓ You're using the Home Screen app.</p>
+  <div class="box">
+    <h3>Or the full iPhone app</h3>
+    <p class="note">Keeps playing with the screen locked. Install <b>Pocket-Decks.ipa</b> from a computer with <b>Sideloadly</b> or <b>AltStore</b>
+      and your Apple ID (iPhones only install apps Apple has signed, so a download alone can't install it).
+      With a free Apple ID it must be re-installed every 7 days; your sign-in stays.</p>
+    <a class="dlbtn" href="https://github.com/AndreiBaloniu/pocket-decks/releases/latest/download/Pocket-Decks.ipa">Download for iPhone (.ipa)</a>
+  </div>
+  <img class="bigqr" src="qr.svg" alt="QR code for andreibaloniu.github.io/pocket-decks">
+  <p class="note" style="text-align:center">Scan with a phone camera to open Pocket Decks.</p>
+</dialog>
 
 <dialog id="lib" aria-label="YouTube">
   <div class="libtop">

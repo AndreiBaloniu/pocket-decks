@@ -103,7 +103,8 @@ dialog[open] { display: flex; flex-direction: column; gap: 12px; }
 .libtop { display: flex; align-items: center; gap: 16px; }
 .libtop h2 { flex: 1; margin: 0; font: 700 22px system-ui, sans-serif; }
 .link { background: none; border: 0; color: var(--a); font: 600 15px system-ui, sans-serif; min-height: 44px; padding: 0; }
-.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.tabs { display: flex; gap: 6px; }
+.tabs button { flex: 1; }
 .tabs button.on { background: var(--a); color: var(--bg); border-color: var(--a); --c: var(--a); }
 input[type=search], input[type=text] { width: 100%; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; min-height: 44px; font: 16px system-ui, sans-serif; -webkit-user-select: text; user-select: text; }
 #rows { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; }

@@ -2,7 +2,7 @@
 // Google sign-in client IDs. Not secret: they only tell Google which app is asking.
 // iOS: the installed iPhone app (bundle ID io.github.andreibaloniu.pocketdecks). Web: Safari / Home Screen.
 const GOOGLE_IOS_CLIENT_ID = '140526101246-8dhlsir389qm95moggkagbobc8tjcqe5.apps.googleusercontent.com';
-const GOOGLE_WEB_CLIENT_ID = '';
+const GOOGLE_WEB_CLIENT_ID = '140526101246-hh6rg6himebv2o5i7hnqqrva290gbkup.apps.googleusercontent.com';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const store = {
@@ -687,7 +687,7 @@ if (native) Cap.App?.addListener('appUrlOpen', async ({ url }) => {
 // Safari / Home Screen: Google Identity Services. The token client is prepared when the library
 // opens, so the tap on "Sign in" can open Google's window straight away (Safari blocks it otherwise).
 let gisLoad;
-const webClientId = () => store.get('clientId') || GOOGLE_WEB_CLIENT_ID;
+const webClientId = () => GOOGLE_WEB_CLIENT_ID || store.get('clientId');
 function prepSignIn() {
   if (native || !webClientId() || tokenClient || !navigator.onLine) return;
   gisLoad ||= new Promise((res, rej) => {
@@ -720,7 +720,8 @@ $('#signin').onclick = () => {
 };
 signinUI();
 if (store.get('webSignedIn')) prepSignIn();
-if (native) $('#clientId').closest('label').hidden = true; // the installed app has its client ID built in
+// both apps have their Google client ID built in: no Setup needed (it stays for a copy built without one)
+if (native ? GOOGLE_IOS_CLIENT_ID : GOOGLE_WEB_CLIENT_ID) $('.tabs [data-tab=setup]').hidden = true;
 
 // ---------- Get the app ----------
 const getDlg = $('#getDlg');

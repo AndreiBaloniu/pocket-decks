@@ -1,0 +1,15 @@
+{
+  "name": "Pocket Decks",
+  "short_name": "Pocket Decks",
+  "description": "Two-deck DJ mixer for YouTube and your own song files",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1218",
+  "theme_color": "#0f1218",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

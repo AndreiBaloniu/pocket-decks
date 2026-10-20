@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pocket Decks</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pocket Decks">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f1218">
+<style>
+/* Phone: Deck A / mixer / Deck B stacked. Wide: decks side by side, mixer below. Dark "club gear" look.
+   System fonts only, so the app looks the same offline. */
+:root {
+  --bg: #0f1218; --panel: #171b23; --line: #2a303c; --fg: #e7eaf0; --dim: #8a93a6;
+  --a: #ffb347; --b: #4fd1e8; --rec: #ff5a5f;
+  --display: "Avenir Next Condensed", "Arial Narrow", system-ui, sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); }
+body {
+  font: 13px var(--mono);
+  padding: calc(env(safe-area-inset-top) + 12px) max(16px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 24px) max(16px, env(safe-area-inset-left));
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+[hidden] { display: none !important; }
+.app { max-width: 1100px; margin: 0 auto; display: grid; gap: 12px; grid-template-areas: "top" "a" "mix" "b" "note"; }
+@media (min-width: 900px) { .app { grid-template-columns: 1fr 1fr; grid-template-areas: "top top" "a b" "mix mix" "note note"; } }
+header { grid-area: top; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { font: 800 26px var(--display); letter-spacing: .04em; margin: 0; text-transform: uppercase; }
+h1 span { color: var(--a); } h1 span + span { color: var(--b); }
+.offline { color: var(--dim); font-size: 11px; letter-spacing: .08em; }
+.deck { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 10px; min-width: 0; }
+.deck[data-d="0"] { grid-area: a; --c: var(--a); } .deck[data-d="1"] { grid-area: b; --c: var(--b); }
+.deck:not(.is-file) .fileonly, .deck:not(.is-yt) .ytonly, .deck:not(.is-file):not(.is-yt) .loaded { display: none; }
+.deck.is-file .empty, .deck.is-yt .empty { display: none; }
+.deck.is-yt .transport { grid-template-columns: repeat(2, 1fr); }
+.deck.is-yt .transport .sync, .deck.is-yt .transport .nudge, .deck.is-yt .pct { display: none; }
+.head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tag { font: 800 28px var(--display); color: var(--c); line-height: 1; }
+.title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.small { border: 1px solid var(--c); color: var(--c); background: none; border-radius: 6px; padding: 0 12px; min-height: 36px; font: 600 13px var(--mono); cursor: pointer; display: inline-flex; align-items: center; flex: none; }
+.small:focus-within { outline: 2px solid var(--c); outline-offset: 2px; }
+.ytbox { border-radius: 6px; overflow: hidden; background: #000; }
+.ytbox iframe { display: block; width: 100%; height: 200px; border: 0; }
+canvas { width: 100%; height: 72px; display: block; background: #0b0e13; border-radius: 6px; touch-action: none; cursor: pointer; }
+.readout { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; gap: 8px; flex-wrap: wrap; }
+.readout b { font: 500 22px var(--display); color: var(--c); font-variant-numeric: tabular-nums; }
+.dim { color: var(--dim); }
+.grid { display: grid; gap: 6px; }
+.g5 { grid-template-columns: repeat(5, 1fr); } .g4 { grid-template-columns: repeat(4, 1fr); } .g3 { grid-template-columns: repeat(3, 1fr); }
+button { font: 600 13px var(--mono); color: var(--fg); background: #1f2430; border: 1px solid var(--line); border-radius: 6px; min-height: 44px; padding: 0 4px; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--c, var(--a)); outline-offset: 1px; }
+button.on { background: var(--c); color: var(--bg); border-color: var(--c); }
+button.set { border-color: var(--c); color: var(--c); }
+button:disabled { opacity: .4; }
+.play { font-size: 18px; }
+.lbl { font-size: 10px; letter-spacing: .12em; color: var(--dim); text-transform: uppercase; margin-bottom: -2px; }
+.ctl { display: grid; grid-template-columns: 56px 1fr 48px; align-items: center; gap: 8px; }
+.ctl span { font-size: 11px; letter-spacing: .08em; color: var(--dim); cursor: pointer; }
+.ctl output { font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--c, var(--a)); height: 28px; margin: 0; }
+.note { color: var(--dim); font-size: 12px; line-height: 1.5; margin: 0; }
+.status { margin: 0; font-size: 12px; }
+.mixer { grid-area: mix; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 8px; }
+.xf { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; font: 800 22px var(--display); }
+.xf input { accent-color: var(--fg); height: 36px; }
+.recrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#rec { border-color: var(--rec); color: var(--rec); padding: 0 16px; font-variant-numeric: tabular-nums; }
+#rec.on { background: var(--rec); color: var(--bg); }
+#mixAudio { width: 100%; height: 36px; }
+.foot { grid-area: note; max-width: 70ch; }
+/* YouTube library */
+dialog { width: min(640px, 100vw); max-width: 100vw; height: 100%; max-height: 100dvh; margin: auto; padding: calc(env(safe-area-inset-top) + 16px) 16px 16px; background: var(--bg); color: var(--fg); border: 0; }
+@media (min-width: 700px) { dialog { height: 85dvh; border: 1px solid var(--line); border-radius: 12px; } }
+dialog::backdrop { background: rgba(0, 0, 0, .6); }
+dialog[open] { display: flex; flex-direction: column; gap: 12px; }
+.libtop { display: flex; align-items: center; gap: 16px; }
+.libtop h2 { flex: 1; margin: 0; font: 700 22px system-ui, sans-serif; }
+.link { background: none; border: 0; color: var(--a); font: 600 15px system-ui, sans-serif; min-height: 44px; padding: 0; }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.tabs button.on { background: var(--a); color: var(--bg); border-color: var(--a); --c: var(--a); }
+input[type=search], input[type=text] { width: 100%; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; min-height: 44px; font: 16px system-ui, sans-serif; -webkit-user-select: text; user-select: text; }
+#rows { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; }
+.row { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 8px 0; min-height: 70px; }
+.row img { width: 72px; height: 54px; border-radius: 4px; object-fit: cover; background: var(--panel); flex: none; }
+.row b { display: block; font: 500 14px system-ui, sans-serif; }
+.row span { display: block; color: var(--dim); font: 12px system-ui, sans-serif; margin-top: 2px; }
+#setup { display: grid; gap: 12px; overflow-y: auto; }
+#setup label { display: grid; gap: 6px; font: 13px system-ui, sans-serif; }
+#setup ol { margin: 0; padding-left: 20px; color: var(--dim); font: 13px/1.5 system-ui, sans-serif; -webkit-user-select: text; user-select: text; }
+#setup code { color: var(--fg); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <h1><span>Pocket</span> <span>Decks</span></h1>
+    <span class="offline" id="offline" hidden>OFFLINE · song files only</span>
+  </header>
+
+  <section class="deck" data-d="0"></section>
+
+  <section class="mixer">
+    <div class="lbl">Crossfader</div>
+    <div class="xf"><span style="color:var(--a)">A</span><input id="xf" type="range" min="0" max="1" step="0.005" value="0.5" aria-label="Crossfader"><span style="color:var(--b)">B</span></div>
+    <div class="recrow">
+      <button id="rec" aria-label="Record mix">● REC</button>
+      <button id="saveMix" hidden>Save mix</button>
+      <span class="note" id="recInfo"></span>
+    </div>
+    <audio id="mixAudio" controls hidden></audio>
+    <p class="note" id="recYT" hidden>YouTube decks aren't included in recordings. YouTube's player keeps its audio to itself.</p>
+  </section>
+
+  <section class="deck" data-d="1"></section>
+
+  <p class="note foot">Load a track on each deck from <b>YouTube</b> or from your <b>Files</b>. Tap a hot-cue pad to set it, tap again to jump, hold to clear.
+    Hold ‹‹ / ›› to nudge a deck into phase after SYNC. If the BPM is wrong, tap TAP along with the beat.
+    Song files work offline; YouTube needs internet.</p>
+</main>
+
+<dialog id="lib" aria-label="YouTube">
+  <div class="libtop">
+    <h2>YouTube</h2>
+    <button class="link" id="signin">Sign in with Google</button>
+    <button class="link" id="libClose">Done</button>
+  </div>
+  <div class="tabs" role="tablist">
+    <button data-tab="search" class="on">Search</button>
+    <button data-tab="playlists">Playlists</button>
+    <button data-tab="liked">Liked</button>
+    <button data-tab="setup">Setup</button>
+  </div>
+  <form id="searchForm"><input id="q" type="search" placeholder="Song, artist or remix" enterkeyhint="search" autocomplete="off" aria-label="Search YouTube"></form>
+  <button class="link" id="back" hidden>‹ Playlists</button>
+  <p class="note" id="libMsg"></p>
+  <ul id="rows"></ul>
+  <div id="setup" hidden>
+    <label>YouTube API key (needed for search)<input id="apiKey" type="text" autocomplete="off" spellcheck="false"></label>
+    <label>Google OAuth client ID (for your playlists and liked songs)<input id="clientId" type="text" autocomplete="off" spellcheck="false"></label>
+    <p class="note">Both are saved only in this browser on this phone.</p>
+    <ol>
+      <li>At console.cloud.google.com, create a project and enable <b>YouTube Data API v3</b>.</li>
+      <li>Credentials › Create credentials › <b>API key</b>. Restrict it to the YouTube Data API and to the website <code id="originHint"></code>.</li>
+      <li>OAuth consent screen: External, Testing, and add your Google account as a test user.</li>
+      <li>Credentials › Create credentials › <b>OAuth client ID</b> › Web application. Add <code id="originHint2"></code> under Authorized JavaScript origins.</li>
+    </ol>
+  </div>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>

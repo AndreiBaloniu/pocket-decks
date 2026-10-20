@@ -2,6 +2,12 @@
 
 Two-deck DJ mixer for iPhone. Each deck plays a YouTube track (YouTube's official player) or a song file from the Files app.
 
+**Get it on your iPhone:** scan this with the Camera app, open it in Safari, then tap Share › **Add to Home Screen**.
+
+<img src="web/qr.svg" alt="QR code for https://andreibaloniu.github.io/pocket-decks/" width="180">
+
+https://andreibaloniu.github.io/pocket-decks/
+
 ## How it works
 
 Same setup as Break My Eggs: a plain web app published to GitHub Pages, added to the iPhone Home Screen. No Expo, no Apple Developer account.

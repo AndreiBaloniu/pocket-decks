@@ -7,7 +7,7 @@ const out = path.join(__dirname, '..', 'dist', 'web');
 
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
-for (const f of ['index.html', 'app.js', 'sw.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'])
+for (const f of ['index.html', 'app.js', 'sw.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png', 'qr.svg'])
   fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
 const stamp = new Date().toISOString().slice(0, 16).replace(/\D/g, '');
 const sw = path.join(out, 'sw.js');

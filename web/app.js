@@ -43,7 +43,8 @@ const DECK_HTML = `
   <div class="ctl fileonly"><span data-r="0">FILTER</span><input class="filt" type="range" min="-1" max="1" step="0.01" value="0" aria-label="Filter"><output></output></div>
   <div class="grid g3 fileonly"><button class="echo">ECHO</button><button class="remix">AUTO REMIX</button><button class="orig" hidden>ORIGINAL</button></div>
   <p class="note fileonly remixnote" hidden>Playing a remix: fills every 4 bars, swapped bars, and a build every 16 bars. Tap REMIX AGAIN for a new version.</p>
-  <p class="note ytonly">YouTube's player only lets apps change volume, position and speed in 25% steps, so pitch, nudge, SYNC, EQ, effects,
+  <p class="note ytonly">On iPhone only one YouTube deck can play at a time, so mix a YouTube track against a song file on the other deck.
+    YouTube's player only lets apps change volume, position and speed in 25% steps, so pitch, nudge, SYNC, EQ, effects,
     remix and recording work on song files only. Tap TAP along with the beat so a song-file deck can SYNC to this one.
     The first time, tap play on the video itself; after that the deck buttons work.</p>`;
 
@@ -92,7 +93,7 @@ function play(d) {
   d.src = s; d.t0 = ctx.currentTime; d.playing = true; ui(d);
 }
 function pause(d) {
-  if (d.mode === 'yt') { if (d.ytReady) d.player.pauseVideo(); return; }
+  if (d.mode === 'yt') { d.ytPausedByUs = Date.now(); if (d.ytReady) d.player.pauseVideo(); return; }
   if (!d.playing) return;
   commit(d); d.playing = false;
   const s = d.src; d.src = null; s.stop(); ui(d);
@@ -190,6 +191,11 @@ async function loadYouTube(d, row) {
     events: {
       onReady: () => { d.ytReady = true; d.ytDur = d.player.getDuration(); applyGain(d); status(d, ''); },
       onStateChange: (e) => {
+        const o = decks[1 - d.i];
+        // iPhones let only one video with sound play at a time: starting the other YouTube deck pauses this one
+        if (e.data === YT.PlayerState.PAUSED && d.playing && Date.now() - (d.ytPausedByUs || 0) > 1500 && o.mode === 'yt')
+          status(d, "Paused by iOS: iPhones play only one YouTube video at a time. To mix two songs, load a song file on the other deck.");
+        if (e.data === YT.PlayerState.PLAYING) status(d, '');
         d.playing = e.data === YT.PlayerState.PLAYING;
         if (d.playing && !d.ytDur) d.ytDur = d.player.getDuration();
         ui(d);
